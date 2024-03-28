@@ -1,2 +1,3 @@
 sources/*
 record_*.csv
+*.log
