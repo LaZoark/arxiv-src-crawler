@@ -1,3 +1,4 @@
 sources/*
 record_*.csv
 *.log
+*.pyc

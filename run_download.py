@@ -7,6 +7,7 @@ import arxiv
 from os import system as system_command
 import time
 import datetime
+import requests
 
 
 from utils.color_log import color, tracing_log
@@ -70,6 +71,26 @@ def checkAndCreateFolder(dirpath: str,
 
   return file_path.exists()
 
+def download_source_safe(dirpath: str="./",
+                         filename: str=""
+                         ) :
+  '''
+  Downloads the source tarfile for this result to the specified directory.\n
+  Please take `filename` as `arxiv_id`. (e.g., 1112.0097v1)
+  
+  This is the improvement for the `download_source` in `arxiv` package.
+  '''
+  
+  base_url = "https://arxiv.org/src/"
+  response = requests.get(base_url + filename)
+  
+  download_to_path = Path(dirpath).joinpath(filename) if filename != "" \
+    else response.headers["content-disposition"].split("filename=")[-1].strip("\"")
+  with open(download_to_path, "wb") as file:
+    file.write(response.content)
+  
+  return str(download_to_path.absolute())
+
 # _paper_src_name = "2005.05005v2"
 # _paper_src_name = "2206.09112v4"
 # checkAndCreateFolder(dirpath=_paper_src_name.split(".")[0], filename=_paper_src_name, demo=True)
@@ -85,7 +106,7 @@ def download_src(arxiv_id: list,
   paper_info: dict
   '''
   search_by_id = arxiv.Search(id_list=arxiv_id)
-  client = arxiv.Client(page_size=500, delay_seconds=3, num_retries=3)
+  client = arxiv.Client(page_size=400, delay_seconds=3, num_retries=3)
   pbar = tqdm(client.results(search_by_id), 
               total=len(arxiv_id),
               miniters=1,
@@ -105,7 +126,8 @@ def download_src(arxiv_id: list,
     paper_info[paper_id]["title"] = paper.title
     if not checkAndCreateFolder(dirpath=paper_id.split(".")[0], filename=paper_id, basepath=PATH_TO_DOWNLOAD):
       # Skip the task if the file already exist.
-      paper.download_source(dirpath=Path(basepath).joinpath(paper_id.split(".")[0]), filename=paper_id)
+      # paper.download_source(dirpath=Path(basepath).joinpath(paper_id.split(".")[0]), filename=paper_id)
+      download_source_safe(dirpath=Path(basepath).joinpath(paper_id.split(".")[0]), filename=paper_id)
       # pbar.write(f"({timer_sub.update(show_float=1)}) {pbar.n+1}: [{paper_id}] {paper.title}")
       log_str = f"[{datetime.datetime.now()}] ({timer_sub.update(show_float=1)}) {pbar.n+1}: [{paper_id}] {paper.title}"
       pbar.write(log_str)
@@ -119,9 +141,9 @@ def download_src(arxiv_id: list,
   return paper_info
 
 # %%
-RECORD_FMT: str = "csv" # "json"
+RECORD_FMT: str = "csv"
 ITER_STEP: int = 400
-start_flag: int = 8000+318
+start_flag: int = 0
 
 while start_flag <= process_cnt_bak:
   if start_flag + ITER_STEP >= process_cnt_bak:
@@ -133,8 +155,8 @@ while start_flag <= process_cnt_bak:
   part_paper_dict = download_src(arxiv_id=paper_id_list, basepath=PATH_TO_DOWNLOAD)
   start_flag += ITER_STEP
 
-  # info_table = pd.DataFrame(part_paper_dict).T
-  # info_table.to_csv(f"record_{probe_interval.start}-{probe_interval.stop}.{RECORD_FMT}")
+  info_table = pd.DataFrame(part_paper_dict).T
+  info_table.to_csv(f"record_{probe_interval.start}-{probe_interval.stop}.{RECORD_FMT}")
   
 logging.info(f"Done.")
 
